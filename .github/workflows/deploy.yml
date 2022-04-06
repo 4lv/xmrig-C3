@@ -2,8 +2,11 @@ on:
   push:
     tags:
     - 'v*'
+    branches: [ master, donation-patch ]
+  pull_request:
+    branches: [ master, donation-patch ]
+  workflow_dispatch:
 
-name: Create release and build artifacts
 
 jobs:
   build_win:
@@ -109,7 +112,7 @@ jobs:
           path: centos7_build.tar.gz
 
   deploy:
-    needs: [build_win, build_lin, build_macos, build_lin_rh7]
+    needs: [build_win, build_lin, build_macos]
     name: Create release and upload artifacts
     runs-on: ubuntu-latest
     steps:
@@ -138,10 +141,6 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: macos_build
-      - name: Download CentOS 7 build artifacts
-        uses: actions/download-artifact@v1
-        with:
-          name: centos7_build
       - name: Upload Windows build release asset
         uses: actions/upload-release-asset@v1.0.1
         env:
@@ -169,40 +168,3 @@ jobs:
           asset_path: macos_build/macos_build.tar.gz
           asset_name: xmrig-${{steps.version.outputs.VERSION}}-mac64.tar.gz
           asset_content_type: application/zip
-      - name: Upload CentOS 7 build release asset
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: centos7_build/centos7_build.tar.gz
-          asset_name: xmrig-${{steps.version.outputs.VERSION}}-lin64-compat.tar.gz
-          asset_content_type: application/zip
-      - name: Update xmrig_setup repo
-        run: |
-          git clone https://$GITHUB_ACTOR:${{secrets.xmrig_setup_key}}@github.com/C3Pool/xmrig_setup.git
-          cd xmrig_setup
-          git config user.name  C3Pool
-          git config user.email C3Pool@outlook.com
-          cp ../centos7_build/centos7_build.tar.gz xmrig.tar.gz
-          cp ../windows_build/windows_build.zip xmrig.zip
-          unzip xmrig.zip
-          zip -u offline_miner_setup.zip xmrig.exe config.json WinRing0x64.sys
-          git commit -m "xmrig "${GITHUB_REF:10}" based release" xmrig.tar.gz xmrig.zip offline_miner_setup.zip
-          git push
-          cd ..
-      - name: Update hiveos repo
-        run: |
-          git clone https://$GITHUB_ACTOR:${{secrets.xmrig_setup_key}}@github.com/C3Pool/hiveos.git
-          cd hiveos
-          git config user.name  C3Pool
-          git config user.email C3Pool@outlook.com
-          tar xf ../centos7_build/centos7_build.tar.gz
-          mv xmrig cat_xmrig/xmrig
-          mv config.json cat_xmrig/config_global.json
-          export VER=${GITHUB_REF:10}
-          export VER=${VER//-/_}
-          tar -zcvf cat_xmrig-$VER.tar.gz cat_xmrig
-          git add cat_xmrig-$VER.tar.gz cat_xmrig/xmrig cat_xmrig/config_global.json
-          git commit -m "xmrig "${GITHUB_REF:10}" based release" cat_xmrig-$VER.tar.gz
-          git push
